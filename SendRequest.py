@@ -4,7 +4,7 @@ import base64
 import cv2
 Pytorch_REST_API_URL = 'http://127.0.0.1:5000/predict'
 
-imagePath = './Testimage/1.png'
+imagePath = './Testimage/3.png'
 
 def predict_result(image_path):
     img = cv2.imread(image_path)
@@ -17,17 +17,6 @@ def predict_result(image_path):
     result = r.text
 
     print(result)
-
-
-
-    # with open(image_path, 'rb') as f:
-    #     image = base64.b64encode(f.read()).decode()
-    # iml = []
-    # iml.append(image)
-    # res = {'image': iml}
-    #
-    # r = requests.post(Pytorch_REST_API_URL, data=res)
-    # print(r)
 
 
 if __name__ == '__main__':

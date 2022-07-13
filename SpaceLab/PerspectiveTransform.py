@@ -1,15 +1,40 @@
+import argparse
+
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 import math
-camera_angle = 35   #alpha 相机对地法线角度
-inside_angle = 40   #bata  相机内视场纵向角度
-height = 40       #飞行高度
+
+from configs import set_cfg_from_file
+
+# camera_angle = 29   #alpha 相机对地法线角度
+# inside_angle = 29   #bata  相机内视场纵向角度
+# height = 70       #飞行高度
+# camera_with = camera_angle*1.79  #相机内视场横向角度
+# tiangle = (180-camera_with)/2   #上横向视场与地面夹角
+#
+# originH = 1024
+# originW = 1920
+
+def parse_args():
+    parse = argparse.ArgumentParser()
+    parse.add_argument('--configs', dest='configs', type=str,
+                        default='../configs/default.py',)
+    return parse.parse_args()
+
+args = parse_args()
+
+cfg = set_cfg_from_file(args.configs)
+
+
+
+camera_angle = cfg.camera_angle
+inside_angle = cfg.inside_angle
+height = cfg.height
+originH = cfg.originH
+originW = cfg.originW
 camera_with = camera_angle*1.79  #相机内视场横向角度
 tiangle = (180-camera_with)/2   #上横向视场与地面夹角
-
-originH = 1024
-originW = 1920
 
 def getPercent():
     src = cv2.imread("../SpaceLab/res.png")
