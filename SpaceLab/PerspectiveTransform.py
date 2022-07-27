@@ -31,8 +31,8 @@ cfg = set_cfg_from_file(args.configs)
 camera_angle = cfg.camera_angle
 inside_angle = cfg.inside_angle
 height = cfg.height
-originH = cfg.originH
-originW = cfg.originW
+originH = 1080
+originW = 1920
 camera_with = camera_angle*1.79  #相机内视场横向角度
 tiangle = (180-camera_with)/2   #上横向视场与地面夹角
 
@@ -77,7 +77,7 @@ x2 = ((head-bottom)/2+bottom)*pixavg
 
 Space=((head+bottom)*origin_length)/2
 
-img = cv2.imread('../SpaceLab/1.png')
+img = cv2.imread('../SpaceLab/17.png')
 rows, cols, ch = img.shape
 pts1 = np.float32([[0, 0],[originW,0],[originW,originH],[0,originH] ])
 pts2 = np.float32([[0, 0],[originW, 0],[x2, result_pic_reso],[x1, result_pic_reso]])

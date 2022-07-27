@@ -23,7 +23,7 @@ model2 = None
 use_gpu = False
 
 #palette = np.random.randint(0, 256, (256, 3), dtype=np.uint8)
-palette = array([1,50])
+palette = array([1,60])
 
 
 def prepare_image(image,traget_size):
@@ -60,7 +60,7 @@ def predict():
     cv2.imwrite('./res.jpg', pred)
 
 def getimage():
-    image = Image.open('Testimage/1.png')
+    image = Image.open('Testimage/2.png')
     image = prepare_image(image, traget_size=(512, 1024))
     return image
 

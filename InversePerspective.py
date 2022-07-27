@@ -16,14 +16,9 @@ def parse_args():
 
 
 
-def PerspectiveTransform():
-    args = parse_args()
-    cfg = set_cfg_from_file(args.configs)
-    camera_angle = cfg.camera_angle
-    inside_angle = cfg.inside_angle
-    height = cfg.height
-    originH = cfg.originH
-    originW = cfg.originW
+def PerspectiveTransform(camera_angle,inside_angle,height,originH,originW):
+
+
     camera_with = camera_angle * 1.79  # 相机内视场横向角度
     tiangle = (180 - camera_with) / 2  # 上横向视场与地面夹角
     alin = math.radians(camera_with)
