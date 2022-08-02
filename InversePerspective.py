@@ -53,8 +53,10 @@ def PerspectiveTransform(camera_angle,inside_angle,height,originH,originW):
     arr = np.unique(hest)
     arr[0] = arr[1] + arr[2]
     percentage = arr[2] / arr[0]
-    Space = (((head + bottom) * origin_length) / 2)*percentage
-    return Space
+
+    Space = (((head + bottom) * origin_length) / 2)
+    Cany = (((head + bottom) * origin_length) / 2)*percentage
+    return Space, Cany
 
 def a():
     src = cv2.imread("../SpaceLab/res.png")

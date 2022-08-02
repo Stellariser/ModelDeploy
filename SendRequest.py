@@ -7,7 +7,7 @@ from ClientConfigs import set_cfg_from_file_client
 
 Pytorch_REST_API_URL = 'http://127.0.0.1:5000/predict'
 
-imagePath = './Testimage/17.png'
+imagePath = './Testimage/2.png'
 
 useConfig = True
 

@@ -1,6 +1,6 @@
 import argparse
 import io
-
+from flask_cors import *
 import numpy as np
 from numpy import array
 import flask as flask
@@ -20,6 +20,7 @@ import base64
 from InversePerspective import PerspectiveTransform
 
 app = flask.Flask(__name__)
+CORS(app)
 model = None
 use_gpu = False
 palette = array([1,60])
@@ -51,9 +52,10 @@ def prepare_image(image,traget_size):
         image = image.cuda()
     return Variable(image,volatile=True)
 
-@app.route("/predict",methods = ["POST"])
+@app.route("/predict",methods = ["POST","GET"])
 def predict():
     data = {'success':False}
+
     img = request.form.get('img')
 
     useConfig= request.form.get('useConfig')
@@ -89,8 +91,9 @@ def predict():
             originH = cfg.originH
             originW = cfg.originW
             space = PerspectiveTransform(camera_angle,inside_angle,height,originH,originW)
-        data["Space"]=space
 
+        data["Space"]=space[0]
+        data["Cany"]=space[1]
     return flask.jsonify(data)
 
 
