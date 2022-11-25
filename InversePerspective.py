@@ -29,33 +29,37 @@ def PerspectiveTransform(camera_angle,inside_angle,height,originH,originW):
     origin_length = ((height * math.cos(ba) * math.cos(ba / 2)) / (math.cos(al))) / math.sin(math.pi / 2 - al - ba)
     result_length = ((height * math.cos(ba) * math.cos(ba / 2)) / (math.cos(al)))
 
+
     bottom = math.tan(alin / 2) * height / math.cos(al) * 2
+
     head = bottom + origin_length / math.tan(ti)
+
+
     result_pic_reso = math.floor(origin_length / head * originW)
     pixavg = originW / head
     x1 = ((head - bottom) / 2) * pixavg
     x2 = ((head - bottom) / 2 + bottom) * pixavg
     img = cv2.imread('./res/res.png')
+    img2 = cv2.imread('./terminal/1.png')
+    img2 =cv2.resize(img2,(1024,512))
     pts1 = np.float32([[0, 0], [originW, 0], [originW, originH], [0, originH]])
     pts2 = np.float32([[0, 0], [originW, 0], [x2, result_pic_reso], [x1, result_pic_reso]])
     M = cv2.getPerspectiveTransform(pts1, pts2)
     dst = cv2.warpPerspective(img, M, (originW, result_pic_reso))
+    dst2 = cv2.warpPerspective(img2, M, (originW, result_pic_reso))
     cv2.imwrite('./TransformedMask/trm.png', dst)
+    cv2.imwrite('./Transformedpic/1.png', dst2)
 
     h, w, ch = np.shape(dst)
     gray = cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY)
 
     hest = np.zeros([256], dtype=np.int32)
-    for row in range(h):
-        for col in range(w):
-            pv = gray[row, col]
-            hest[pv] += 1
-    arr = np.unique(hest)
-    arr[0] = arr[1] + arr[2]
-    percentage = arr[2] / arr[0]
+    value, counts = np.unique(dst, return_counts=True)
+    all = counts[1] + counts[60]
+    percentage = counts[60] / all
 
     Space = (((head + bottom) * origin_length) / 2)
-    Cany = (((head + bottom) * origin_length) / 2)*percentage
+    Cany = (((head + bottom) * origin_length) / 2) * percentage
     return Space, Cany
 
 def a():

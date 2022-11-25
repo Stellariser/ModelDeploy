@@ -7,9 +7,9 @@ from ClientConfigs import set_cfg_from_file_client
 
 Pytorch_REST_API_URL = 'http://127.0.0.1:5000/predict'
 
-imagePath = './Testimage/2.png'
+imagePath = './Testimage/3.png'
 
-useConfig = True
+useConfig = False
 
 def parse_args():
     parse = argparse.ArgumentParser()
@@ -23,6 +23,7 @@ def predict_result(image_path):
     img_bytes = encoded_image.tobytes()
     img_bytes = base64.b64encode(img_bytes)
     img_bytes = img_bytes.decode('ascii')
+
     if useConfig:
         args = parse_args()
         cfg = set_cfg_from_file_client(args.configs)
@@ -36,7 +37,7 @@ def predict_result(image_path):
         }
     else:
         data = {'img': img_bytes,
-                'useConfig': False,
+            #    'useConfig': False,
         }
 
     r = requests.post(Pytorch_REST_API_URL, data=data)

@@ -56,6 +56,7 @@ def prepare_image(image,traget_size):
 def predict():
     data = {'success':False}
 
+    print(request.form.get('img'))
     img = request.form.get('img')
 
     useConfig= request.form.get('useConfig')
@@ -100,4 +101,4 @@ def predict():
 if __name__ == '__main__':
     print("loading model and start the server")
     load_model()
-    app.run()
+    app.run(host='127.0.0.1', port=5000, threaded=True)
