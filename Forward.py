@@ -60,7 +60,7 @@ def predict():
     cv2.imwrite('./res.jpg', pred)
 
 def getimage():
-    image = Image.open('./Testimage/18.png')
+    image = Image.open('D:/ICS/ModelDeploy/continuePicMatch/res1.png')
     image = prepare_image(image, traget_size=(512, 1024))
     return image
 

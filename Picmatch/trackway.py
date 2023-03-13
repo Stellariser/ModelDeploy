@@ -6,8 +6,8 @@ FrameFrequency = fps*1
 interval =50
 
 # 第一步：视频的读入
-cap = cv2.VideoCapture("./video/v1_Trim.mp4")
-video = cv2.VideoCapture("./video/v1.mp4")
+cap = cv2.VideoCapture("D:\ICS\ModelDeploy\MOV\DJI_0376.MOV")
+video = cv2.VideoCapture("D:\ICS\ModelDeploy\MOV\DJI_0376.MOV")
 #ret, frame = video.read()
 # 第二步：构建角点检测所需参数
 feature_params = dict(maxCorners=100,
