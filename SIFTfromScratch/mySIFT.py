@@ -589,7 +589,7 @@ def drawLines(X1, X2, Y1, Y2, dis, img, num=50):
 
 # 主方法
 if __name__ == '__main__':
-    origimg = plt.imread('D:\PythonProject\CV\ModelDeploy\Picmatch\ContinusePics/1.jpg')
+    origimg = plt.imread('./imgs/1.jpg')
     # [Height, Weight, Channel]
     if len(origimg.shape) == 3:
         img = origimg.mean(axis=-1)  # 转为灰度图
@@ -601,7 +601,7 @@ if __name__ == '__main__':
     print(len(keyPoints[0]))
     # keypoints 为nx5 其中n为关键点个数，前两列是H,W值，后面为sigma，特征点方向，梯度幅值
     # discriptors 共128个参数，分别代表 每个关键点的 邻域的 16个格子的 8个方向
-    origimg2 = plt.imread('D:\PythonProject\CV\ModelDeploy\Picmatch\ContinusePics/2.jpg')
+    origimg2 = plt.imread('./imgs/2.jpg')
     if len(origimg.shape) == 3:
         img2 = origimg2.mean(axis=-1)
     else:
@@ -614,6 +614,7 @@ if __name__ == '__main__':
     knn = KNeighborsClassifier(n_neighbors=1)  # 使用K临近，若图1中的一个描述符的位置在图二中周围有1个临近点，则将这两个临近点匹配
     knn.fit(discriptors, [0] * len(discriptors))  # 生成长度为len(descriptors)全是0的数组作为标签，训练一个knn分类器[所有点都为0类]
     match = knn.kneighbors(discriptors2, n_neighbors=1, return_distance=True)  # 匹配，找1个临近点即为一类，把index和distance存入match中
+
     # match中包含：
     # match[0]返回值distances：第0列元素为与自身的距离(为0)，后面是(n_neighbors - 1)个与之最近的点与参考点的距离 shape=[关键点个数, n_neighbors]
     # match[1]返回值indices：第0列元素为参考点的索引，后面是(n_neighbors - 1)个与之最近的点的索引 shape=[关键点个数, n_neighbors]

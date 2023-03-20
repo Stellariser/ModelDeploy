@@ -87,7 +87,7 @@ if __name__ == '__main__':
         plt.figure()
         plt.imshow(res)
         plt.show()
-        fig.savefig('./matchline1.svg', dpi=600, format='svg')
+        #fig.savefig('./matchline1.svg', dpi=600, format='svg')
 
     else:
         print("Not enough matches are found - {}/{}".format(len(good), MIN_MATCH_COUNT))
