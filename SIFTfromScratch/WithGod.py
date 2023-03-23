@@ -58,16 +58,19 @@ def compute_distances(img1_path, img2_path):
     distancey = float(kp1[matches[0].queryIdx].pt[1] - kp2[matches[0].trainIdx].pt[1])
     distancex = float(kp1[matches[0].queryIdx].pt[0] - kp2[matches[0].trainIdx].pt[0])
 
+    # print(distancex,"看这个",kp1[matches[0].queryIdx].pt[0],kp2[matches[0].trainIdx].pt[0])
 
-    return abs(distancex), abs(distancey)
+
+    return distancex, distancey
 
 def stitch_images_with_shift(img1_path, img2_path, output_path):
 
 
     x_shift, y_shift = compute_distances(img2_path, img1_path)
+    print(x_shift, y_shift)
 
-    x_shift = int(x_shift)
-    y_shift = int(y_shift)
+    x_shift = abs(int(x_shift))
+    y_shift = abs(int(y_shift))
 
     # Open the input images
     img1 = Image.open(img1_path)
@@ -81,10 +84,10 @@ def stitch_images_with_shift(img1_path, img2_path, output_path):
     stitched_image = Image.new('RGB', (width, height))
 
     # Paste the first image onto the new image
-    stitched_image.paste(img1, (0, 0))
+    stitched_image.paste(img1, (x_shift, 0))
 
     # Paste the second image with the specified horizontal and vertical shifts
-    stitched_image.paste(img2, (x_shift, y_shift))
+    stitched_image.paste(img2, (x_shift-x_shift, y_shift))
 
     # Save the stitched image
     stitched_image.save(output_path)
@@ -165,12 +168,15 @@ def stitch_images_with_blending(img1_path, img2_path, output_path, x_shift, y_sh
     # Save the stitched and blended image
     cv2.imwrite(output_path, blended_image)
 
+
+
+
+
 if __name__ == '__main__':
-    distancex, distancey = compute_distances(img2path,img1path)
-    print(distancex, distancey)
+
     outputpath = './resaaa.png'
     outputpath2 = './resaaab.png'
-    stitch_images_with_shift(img2path,img1path,outputpath)
+    stitch_images_with_shift(img3path,img2path,outputpath)
     #stitch_images_with_blending(img2path,img1path,outputpath2,int(distancex),int(distancey))
 
     print('complete')
