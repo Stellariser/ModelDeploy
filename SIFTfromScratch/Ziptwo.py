@@ -7,8 +7,8 @@ fig, ax = plt.subplots()
 
 if __name__ == '__main__':
     top, bot, left, right = 100, 100, 0, 500
-    img1 = cv.imread('./res1.png')
-    img2 = cv.imread('./res.png')
+    img1 = cv.imread('./transformedPic/1.png')
+    img2 = cv.imread('./transformedPic/2.png')
 
     h, w = img1.shape[:2]
     img2 = cv2.resize(img2,dsize=(w, h))
@@ -21,6 +21,7 @@ if __name__ == '__main__':
 
     img2gray = cv.cvtColor(testImg, cv.COLOR_BGR2GRAY)
     # sift = cv.xfeatures2d_SIFT().create()
+
     sift = cv.SIFT_create()
     # find the keypoints and descriptors with SIFT
     kp1, des1 = sift.detectAndCompute(img1gray, None)
@@ -31,6 +32,14 @@ if __name__ == '__main__':
     search_params = dict(checks=50)
     flann = cv.FlannBasedMatcher(index_params, search_params)
     matches = flann.knnMatch(des1, des2, k=2)
+
+    # orb = cv2.ORB_create()
+    # kp1, des1 = orb.detectAndCompute(img1, None)
+    # kp2, des2 = orb.detectAndCompute(img2, None)
+    # bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    # matches = bf.match(des1, des2)
+    # matches = sorted(matches, key=lambda x: x.distance)
+
 
 
     # Need to draw only good matches, so create a mask
@@ -64,18 +73,22 @@ if __name__ == '__main__':
         src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
         dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
         M, mask = cv.findHomography(src_pts, dst_pts, cv.RANSAC, 5.0)
-        warpImg = cv.warpPerspective(testImg, np.array(M), (testImg.shape[1], testImg.shape[0]), flags=cv.WARP_INVERSE_MAP)
+        warpImg = cv.warpPerspective(testImg, np.array(M), (testImg.shape[1], testImg.shape[0]),
+                                     flags=cv.WARP_INVERSE_MAP)
+
+        height = srcImg.shape[0] * 2
+        width = max(srcImg.shape[1], warpImg.shape[1])
 
         for col in range(0, cols):
             if srcImg[:, col].any() and warpImg[:, col].any():
                 left = col
                 break
-        for col in range(cols-1, 0, -1):
+        for col in range(cols - 1, 0, -1):
             if srcImg[:, col].any() and warpImg[:, col].any():
                 right = col
                 break
 
-        res = np.zeros([rows, cols, 3], np.uint8)
+        res = np.zeros([height, width, 3], np.uint8)
         for row in range(0, rows):
             for col in range(0, cols):
                 if not srcImg[row, col].any():
@@ -86,7 +99,7 @@ if __name__ == '__main__':
                     srcImgLen = float(abs(col - left))
                     testImgLen = float(abs(col - right))
                     alpha = srcImgLen / (srcImgLen + testImgLen)
-                    res[row, col] = np.clip(srcImg[row, col] * (1-alpha) + warpImg[row, col] * alpha, 0, 255)
+                    res[row, col] = np.clip(srcImg[row, col] * (1 - alpha) + warpImg[row, col] * alpha, 0, 255)
         cv.imwrite("./resa.png", res)
         # opencv is bgr, matplotlib is rgb
         res = cv.cvtColor(res, cv.COLOR_BGR2RGB)

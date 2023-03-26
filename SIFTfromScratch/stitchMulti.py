@@ -3,13 +3,14 @@ import math
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from sklearn.neighbors import KNeighborsClassifier
 from matplotlib.patches import ConnectionPatch
 import matplotlib.transforms as mtransforms
 from sklearn.cluster import KMeans
 from sklearn.cluster import MeanShift, estimate_bandwidth
 import os
+
 
 def display_custom_points_matplotlib(img1_path, img2_path, coord1, coord2):
     img1 = cv2.imread(img1_path, cv2.IMREAD_COLOR)
@@ -33,8 +34,58 @@ def display_custom_points_matplotlib(img1_path, img2_path, coord1, coord2):
     ax2.set_title("Image 2")
     ax2.axis("off")
 
-
     plt.show()
+
+
+def rotateimgAffine(img, angle):
+    img_np = np.array(img)
+    height, width = img_np.shape[:2]
+    center = (width // 2, height // 2)
+
+    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+
+    # Compute the new size of the image based on the rotation angle
+    corners = np.array([
+        [0, 0],
+        [width - 1, 0],
+        [width - 1, height - 1],
+        [0, height - 1]
+    ], dtype=np.float32)
+
+    corners_rotated = np.dot(rotation_matrix[:, :2], corners.T).T
+    new_width = int(np.ceil(corners_rotated[:, 0].max() - corners_rotated[:, 0].min()))
+    new_height = int(np.ceil(corners_rotated[:, 1].max() - corners_rotated[:, 1].min()))
+
+    # Adjust the rotation matrix to take into account the new image size
+    rotation_matrix[0, 2] += (new_width - width) / 2
+    rotation_matrix[1, 2] += (new_height - height) / 2
+
+    rotated_img_np = cv2.warpAffine(img_np, rotation_matrix, (new_width, new_height))
+
+    # Convert the rotated image to RGBA
+    rotated_img = Image.fromarray(rotated_img_np).convert('RGBA')
+
+    # Create a mask for the black area of the rotated image
+    mask = Image.new('L', rotated_img.size, 0)
+    mask.paste(255, (0, 0, new_width, new_height))
+
+    # Remove the black area from the rotated image
+    rotated_img.putalpha(mask)
+
+    # Crop the rotated image to remove the transparent area
+    bbox = Image.Image.getbbox(rotated_img)
+    cropped_rotated_img = rotated_img.crop(bbox)
+
+    return cropped_rotated_img
+
+
+def rotateimg(img, angle):
+    rotated_img = img.rotate(angle, expand=True, fillcolor=None)
+    inverted_img = ImageOps.invert(rotated_img.convert('L'))
+    bbox = inverted_img.getbbox()
+    cropped_rotated_img = rotated_img.crop(bbox)
+    return cropped_rotated_img
+
 
 def filter_angles_Sort(angles, bandwidth=None, bin_seeding=True):
     # 将 angles 转换为列向量
@@ -61,6 +112,7 @@ def filter_angles_Sort(angles, bandwidth=None, bin_seeding=True):
 
     return sorted_cluster_centers
 
+
 def filter_angles(angles, n_clusters=4):
     angles = np.array(angles).reshape(-1, 1)
     kmeans = KMeans(n_clusters=n_clusters)
@@ -73,6 +125,7 @@ def filter_angles(angles, n_clusters=4):
         group = angles[labels == i]
         means.append(np.mean(group))
     return filtered_angles, means
+
 
 def compute_distances_withSIFT(image_path1, image_path2):
     # 加载图像
@@ -131,7 +184,6 @@ def compute_distances_withSIFT(image_path1, image_path2):
 
     print(pt1, angle1, pt2, angle2)
 
-
     return (pt1, angle1), (pt2, angle2)
 
 
@@ -160,15 +212,15 @@ def compute_distances(img1_path, img2_path):
     pt2_1 = np.array(kp2[matches[0].trainIdx].pt)
     pt2_2 = np.array(kp2[matches[1].trainIdx].pt)
 
-    print(pt1_1,pt1_2,pt2_1,pt2_2)
+    print(pt1_1, pt1_2, pt2_1, pt2_2)
 
     angleList = []
 
-    for i in range(0,len(matches)-1):
+    for i in range(0, len(matches) - 1):
         ptx_1 = np.array(kp1[matches[i].queryIdx].pt)
-        ptx_2 = np.array(kp1[matches[i+1].queryIdx].pt)
+        ptx_2 = np.array(kp1[matches[i + 1].queryIdx].pt)
         pty_1 = np.array(kp2[matches[i].trainIdx].pt)
-        pty_2 = np.array(kp2[matches[i+1].trainIdx].pt)
+        pty_2 = np.array(kp2[matches[i + 1].trainIdx].pt)
         v1 = ptx_1 - ptx_2
         v2 = pty_1 - pty_2
         cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
@@ -182,7 +234,6 @@ def compute_distances(img1_path, img2_path):
         if cross_product < 0:
             finalrotate = -finalrotate
 
-
         angleList.append(finalrotate)
 
     # filtered_angles,means = filter_angles(angleList)
@@ -192,11 +243,10 @@ def compute_distances(img1_path, img2_path):
     # print(filter_angles_Sort(angleList)[0],"AAAAAA")
 
     # print(distancex,"看这个",kp1[matches[0].queryIdx].pt[0],kp2[matches[0].trainIdx].pt[0])
-    return distancex, distancey,filter_angles_Sort(angleList)[0]
+    return distancex, distancey, filter_angles_Sort(angleList)[0]
+
 
 def stitch_images_with_shift(img1_path, img2_path, output_path):
-
-
     x_shift, y_shift = compute_distances(img2_path, img1_path)
     print(x_shift, y_shift)
 
@@ -208,7 +258,7 @@ def stitch_images_with_shift(img1_path, img2_path, output_path):
     img2 = Image.open(img2_path)
 
     # Calculate the size of the output image
-    width = img1.width + 2*abs(x_shift)
+    width = img1.width + 2 * abs(x_shift)
     height = max(img1.height, img2.height + abs(y_shift))
 
     # Create a new image with the combined dimensions
@@ -218,50 +268,53 @@ def stitch_images_with_shift(img1_path, img2_path, output_path):
     stitched_image.paste(img1, (x_shift, 0))
 
     # Paste the second image with the specified horizontal and vertical shifts
-    stitched_image.paste(img2, (x_shift-x_shift, y_shift))
+    stitched_image.paste(img2, (x_shift - x_shift, y_shift))
 
     # Save the stitched image
     stitched_image.save(output_path)
 
-def stitch_images_with_shift_multi(images,output_path):
 
+def stitch_images_with_shift_multi(images, output_path):
     shifts = []
-    for i in range(0,len(images)-1):
-        x_shift, y_shift, angle = compute_distances(images[i], images[i+1])
+    for i in range(0, len(images) - 1):
+        x_shift, y_shift, angle = compute_distances(images[i], images[i + 1])
         x_shift = abs(int(x_shift))
         y_shift = abs(int(y_shift))
-        shifts.append((x_shift, y_shift))
+        shifts.append((x_shift, y_shift, angle))
 
-    print(shifts,"aaaaaaaaa")
+    print(shifts, "aaaaaaaaa")
 
     # Read the first image
     img1 = Image.open(images[0])
 
-
     # Calculate the size of the output image
-    width = img1.width + 2*sum([shift[0] for shift in shifts])
+    width = img1.width + 2 * sum([shift[0] for shift in shifts])
     height = img1.height + sum([shift[1] for shift in shifts])
 
-    print(width,height)
+    print(width, height)
 
     # Create a new image with the combined dimensions
     stitched_image = Image.new('RGB', (width, height))
 
     # Paste the first image onto the new image
-    stitched_image.paste(img1, (0+sum([shift[0] for shift in shifts]), 0))
+    stitched_image.paste(img1, (0 + sum([shift[0] for shift in shifts]), 0))
 
     for i in range(1, len(images)):
         img_path = images[i]
-        x_shift, y_shift = shifts[i-1]
+        x_shift, y_shift, angle = shifts[i - 1]
 
         # Open the current image
         img = Image.open(img_path)
 
         # Calculate the position of the current image
-        x_pos = -sum([shift[0] for shift in shifts[:i]])+sum([shift[0] for shift in shifts])
+        x_pos = -sum([shift[0] for shift in shifts[:i]]) + sum([shift[0] for shift in shifts])
         y_pos = sum([shift[1] for shift in shifts[:i]])
 
-        print(x_pos,y_pos)
+        print(x_pos, y_pos)
+
+        # img = rotateimg(img,int(sum([shift[2] for shift in shifts[:i]])))
+
+        print("转成功了2")
 
         # Paste the current image with the calculated shifts
         stitched_image.paste(img, (x_pos, y_pos))
@@ -310,6 +363,7 @@ def stitch_images_with_shift_and_multi(images, output_path):
 
     stitched_image.save(output_path)
 
+
 def extract_frames_from_video(video_path, frame_rate):
     # Open the video file
     cap = cv2.VideoCapture(video_path)
@@ -333,6 +387,7 @@ def extract_frames_from_video(video_path, frame_rate):
     cap.release()
     return frames
 
+
 def stitch_frames_from_video(video_path, output_path, frame_rate):
     # Extract frames from the video
     frames = extract_frames_from_video(video_path, frame_rate)
@@ -343,6 +398,7 @@ def stitch_frames_from_video(video_path, output_path, frame_rate):
     # Clean up the extracted frames
     for frame_img_path in frames:
         os.remove(frame_img_path)
+
 
 def compute_distancess(img1_path, img2_path):
     img1 = cv2.imread(img1_path, cv2.IMREAD_GRAYSCALE)
@@ -382,7 +438,8 @@ def compute_distancess(img1_path, img2_path):
     distancey = float(y1 - y2)
     distancex = float(x1 - x2)
 
-    return distancex, distancey,gradient_direction1,gradient_direction2
+    return distancex, distancey, gradient_direction1, gradient_direction2
+
 
 def estimate_rotation(img1_path, img2_path):
     img1 = cv2.imread(img1_path, cv2.IMREAD_GRAYSCALE)
@@ -414,7 +471,7 @@ def estimate_rotation(img1_path, img2_path):
 
         # 计算旋转角度
         if H is not None:
-            _, _, theta = cv2.decomposeHomographyMat(H)        #相机内参矩阵
+            _, _, theta = cv2.decomposeHomographyMat(H)  # 相机内参矩阵
             for t in theta:
                 t = np.rad2deg(t) % 360  # 转换为0-360度
                 print("Estimated rotation angle:", t)
@@ -437,6 +494,7 @@ def extract_sift_orientations(img_path):
     orientations = [kp.angle for kp in keypoints]
 
     return orientations
+
 
 def best_orientation(img1_path, img2_path):
     img1 = cv2.imread(img1_path, cv2.IMREAD_GRAYSCALE)
@@ -467,9 +525,136 @@ def best_orientation(img1_path, img2_path):
         best_orientation1 = kp1[best_match.queryIdx].angle
         best_orientation2 = kp2[best_match.trainIdx].angle
 
-        return best_orientation1,best_orientation2
+        return best_orientation1, best_orientation2
     else:
         return None
+
+
+def stitch_images_vertical(img1, img2, output_path):
+    # 初始化ORB特征检测器
+    orb = cv2.ORB_create()
+
+    img1 =cv2.imread(img1)
+    img2 = cv2.imread(img2)
+
+    # 在两个图像上检测特征点和计算描述符
+    kp1, des1 = orb.detectAndCompute(img1, None)
+    kp2, des2 = orb.detectAndCompute(img2, None)
+
+    # 初始化BFMatcher（Brute-Force Matcher）并进行描述符匹配
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1, des2)
+
+    # 按照距离排序匹配结果
+    matches = sorted(matches, key=lambda x: x.distance)
+
+    # 选择最好的四个特征点
+    best_matches = matches[:10]
+
+    # 提取匹配点的坐标
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in best_matches]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in best_matches]).reshape(-1, 1, 2)
+
+    # 使用RANSAC算法计算单应性矩阵
+    M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+
+    # 获取图像尺寸
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+
+    # 计算拼接后的图像尺寸
+    stitched_img_size = (max(w1, w2), h1 + h2)
+
+    # 应用单应性矩阵进行图像变换
+    stitched_img = cv2.warpPerspective(img1, M, stitched_img_size)
+    stitched_img[h1:h1+h2, 0:w2] = img2
+
+    # 保存拼接后的图像到指定路径
+    cv2.imwrite(output_path, stitched_img)
+
+def stitch_images_vertical_sift(img_path1, img_path2, output_path):
+    # 读取图像
+    img1 = cv2.imread(img_path1)
+    img2 = cv2.imread(img_path2)
+
+    # 初始化SIFT特征检测器
+    sift = cv2.SIFT_create()
+
+    # 在两个图像上检测特征点和计算描述符
+    kp1, des1 = sift.detectAndCompute(img1, None)
+    kp2, des2 = sift.detectAndCompute(img2, None)
+
+    # 初始化BFMatcher（Brute-Force Matcher）并进行描述符匹配
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(des1, des2, k=2)
+
+    # 应用Lowe's比率测试，保留好的匹配点
+    good_matches = []
+    for m, n in matches:
+        if m.distance < 0.75 * n.distance:
+            good_matches.append(m)
+
+    # 选择最好的四个特征点
+    best_matches = sorted(good_matches, key=lambda x: x.distance)[:4]
+
+    # 提取匹配点的坐标
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in best_matches]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in best_matches]).reshape(-1, 1, 2)
+
+    # 使用RANSAC算法计算单应性矩阵
+    M, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+
+    # 获取图像尺寸
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+
+    # 计算拼接后的图像尺寸
+    stitched_img_size = (max(w1, w2), h1 + h2)
+
+    # 应用单应性矩阵进行图像变换
+    stitched_img = cv2.warpPerspective(img1, M, stitched_img_size)
+    stitched_img[h1:h1+h2, 0:w2] = img2
+
+    # 保存拼接后的图像到指定路径
+    cv2.imwrite(output_path, stitched_img)
+
+def rotate_point(point, angle, center=(0, 0)):
+    x, y = point
+    cx, cy = center
+    angle_rad = math.radians(angle)  # 将角度转换为弧度
+    # 将点平移到旋转中心
+    x -= cx
+    y -= cy
+    # 使用旋转矩阵计算旋转后的坐标
+    x_new = x * math.cos(angle_rad) - y * math.sin(angle_rad)
+    y_new = x * math.sin(angle_rad) + y * math.cos(angle_rad)
+    # 将点平移回原始位置
+    x_new += cx
+    y_new += cy
+
+    return (x_new, y_new)
+
+def rotate_point_matrix(point, angle, center=(1, 1)):
+
+    x, y = point
+    cx, cy = center
+    angle_rad = math.radians(angle)  # 将角度转换为弧度
+
+    # 将点平移到旋转中心
+    x -= cx
+    y -= cy
+
+    # 使用旋转矩阵计算旋转后的坐标
+    x_new = x * math.cos(angle_rad) - y * math.sin(angle_rad)
+    y_new = x * math.sin(angle_rad) + y * math.cos(angle_rad)
+
+    # 将点平移回原始位置
+    x_new += cx
+    y_new += cy
+
+    return (x_new, y_new)
+
+
 
 img1path = './transformedPic/1.png'
 img2path = './transformedPic/2.png'
@@ -478,31 +663,37 @@ img4path = './transformedPic/4.png'
 img5pathAngle = './transformedPic/113.jpg'
 img6pathAngle = './transformedPic/143.jpg'
 
-
 if __name__ == '__main__':
     outputpath = './resaaa.png'
     outputpath2 = './resaaab.png'
+    outputpath3 = './orbandRANSAC.png'
 
     imgpath = []
+    imgpath2 = []
+
     imgpath.append(img4path)
     imgpath.append(img3path)
     imgpath.append(img2path)
     imgpath.append(img1path)
 
+    imgpath2.append(img5pathAngle)
+    imgpath2.append(img6pathAngle)
 
-    #compute_distances(img2path,img1path)
-    #compute_distances_withSIFT(img5pathAngle,img6pathAngle)
+    #stitch_images_vertical(img1path, img2path,outputpath3)
 
-    #best_orientation1,best_orientation2 = best_orientation(img5pathAngle,img6pathAngle)
-    #print(best_orientation1,best_orientation2)
+    # compute_distances(img2path,img1path)
+    # compute_distances_withSIFT(img5pathAngle,img6pathAngle)
 
-    #estimate_rotation(img1path,img2path)
+    # best_orientation1,best_orientation2 = best_orientation(img5pathAngle,img6pathAngle)
+    # print(best_orientation1,best_orientation2)
+
+    # estimate_rotation(img1path,img2path)
 
     # distancex, distancey, gradient_direction1, gradient_direction2 = compute_distances(img1path,img2path)
     # print(distancex, distancey, gradient_direction1, gradient_direction2)
 
-    #stitch_images_with_shift_multi(imgpath,outputpath2)
-    stitch_images_with_shift_and_multi(imgpath,outputpath2)
+    # stitch_images_with_shift_multi(imgpath,outputpath2)
+    # stitch_images_with_shift_and_multi(imgpath,outputpath2)
 
-    #stitch_images_with_shift(img3path, img2path, outputpath)
+    # stitch_images_with_shift(img3path, img2path, outputpath)
     print("complete")
