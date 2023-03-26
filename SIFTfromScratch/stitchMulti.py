@@ -87,6 +87,31 @@ def rotateimg(img, angle):
     return cropped_rotated_img
 
 
+def rotate_rgba_image_fixed_center(img, rotation_angle, output_path):
+    # 读取图像
+    #src_img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+
+    # 获取旋转矩阵
+    (h, w) = img.shape[:2]
+    center = (w // 2, h // 2)
+    rotation_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)
+
+    # 计算新的图像尺寸
+    angle_rad = math.radians(rotation_angle)
+    new_width = int(abs(h * math.sin(angle_rad)) + abs(w * math.cos(angle_rad)))
+    new_height = int(abs(h * math.cos(angle_rad)) + abs(w * math.sin(angle_rad)))
+
+    # 更新旋转矩阵的平移部分
+    rotation_matrix[0, 2] += (new_width / 2) - center[0]
+    rotation_matrix[1, 2] += (new_height / 2) - center[1]
+
+    # 旋转图像
+    rotated_img = cv2.warpAffine(img, rotation_matrix, (new_width, new_height), borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
+
+    # 保存旋转后的图像
+    cv2.imwrite(output_path, rotated_img)
+
+
 def filter_angles_Sort(angles, bandwidth=None, bin_seeding=True):
     # 将 angles 转换为列向量
     angles = np.array(angles).reshape(-1, 1)
