@@ -1,5 +1,5 @@
 import math
-
+from collections import Counter
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,9 +7,13 @@ from PIL import Image, ImageOps
 from sklearn.neighbors import KNeighborsClassifier
 from matplotlib.patches import ConnectionPatch
 import matplotlib.transforms as mtransforms
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 from sklearn.cluster import MeanShift, estimate_bandwidth
 import os
+from scipy.optimize import linear_sum_assignment
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
 
 from SIFTfromScratch.stitchMulti import rotateimg
 
@@ -34,10 +38,34 @@ def filter_angles_Sort(angles, bandwidth=None, bin_seeding=True):
     unique_labels, counts = np.unique(labels, return_counts=True)
     sorted_indices = np.argsort(counts)[::-1]
 
-    # 获取排序后的聚类中心
-    sorted_cluster_centers = cluster_centers[sorted_indices]
+    # 根据类的数量对 unique_labels 进行排序
+    sorted_labels = unique_labels[np.argsort(counts)[::-1]]
 
-    return sorted_cluster_centers
+    # 获取数量最多的类的标签值
+    most_common_label = sorted_labels[0]
+
+    return most_common_label
+
+
+def main_feature_direction(angles, bandwidth=None):
+    angles = np.array(angles).reshape(-1, 1)
+
+    if bandwidth is None:
+        # 使用默认公式估计带宽
+        bandwidth = estimate_bandwidth(angles, quantile=0.2)
+
+    ms = MeanShift(bandwidth=bandwidth, bin_seeding=True)
+    ms.fit(angles)
+
+    labels = ms.labels_
+    cluster_centers = ms.cluster_centers_
+
+    label_counts = Counter(labels)
+    most_common_label, _ = label_counts.most_common(1)[0]
+
+    main_direction = cluster_centers[most_common_label]
+
+    return main_direction
 
 
 def filter_angles(angles, n_clusters=4):
@@ -52,67 +80,6 @@ def filter_angles(angles, n_clusters=4):
         group = angles[labels == i]
         means.append(np.mean(group))
     return filtered_angles, means
-
-
-def compute_distances_withSIFT(image_path1, image_path2):
-    # 加载图像
-    img1 = cv2.imread(image_path1, cv2.IMREAD_GRAYSCALE)
-    img2 = cv2.imread(image_path2, cv2.IMREAD_GRAYSCALE)
-
-    # 创建SIFT对象
-    sift = cv2.SIFT_create()
-
-    # 提取关键点和描述符
-    keypoints1, descriptors1 = sift.detectAndCompute(img1, None)
-    keypoints2, descriptors2 = sift.detectAndCompute(img2, None)
-
-    # 使用BFMatcher进行特征点匹配
-    bf = cv2.BFMatcher()
-    matches = bf.match(descriptors1, descriptors2)
-
-    # 根据距离排序匹配结果
-    matches = sorted(matches, key=lambda x: x.distance)
-
-    # 获取最相似的匹配对
-    best_match = matches[0]
-
-    # 提取最相似特征点的坐标和梯度方向
-    pt1 = keypoints1[best_match.queryIdx].pt
-    pt2 = keypoints2[best_match.trainIdx].pt
-    angle1 = keypoints1[best_match.queryIdx].angle
-    angle2 = keypoints2[best_match.trainIdx].angle
-
-    pt1_1 = np.array(keypoints1[matches[0].queryIdx].pt)
-    pt1_2 = np.array(keypoints1[matches[1].queryIdx].pt)
-    pt2_1 = np.array(keypoints2[matches[0].trainIdx].pt)
-    pt2_2 = np.array(keypoints2[matches[1].trainIdx].pt)
-
-    angleList = []
-
-    for i in range(0, 100):
-        ptx_1 = np.array(keypoints1[matches[i].queryIdx].pt)
-        ptx_2 = np.array(keypoints1[matches[i + 1].queryIdx].pt)
-        pty_1 = np.array(keypoints2[matches[i].trainIdx].pt)
-        pty_2 = np.array(keypoints2[matches[i + 1].trainIdx].pt)
-        v1 = ptx_1 - ptx_2
-        v2 = pty_1 - pty_2
-        cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-        angle = np.arccos(np.clip(cos_angle, -1, 1))
-        angle_degrees = np.degrees(angle)
-        angle_degrees_c = 180 - angle_degrees
-        finalrotate = min(angle_degrees, angle_degrees_c)
-        if not math.isnan(finalrotate):
-            angleList.append(finalrotate)
-
-    print(angleList)
-    filtered_angles, means = filter_angles(angleList)
-    print(filtered_angles)
-    print(means)
-
-    print(pt1, angle1, pt2, angle2)
-
-
-    return (pt1, angle1), (pt2, angle2)
 
 
 def compute_distances(img1_path, img2_path):
@@ -133,6 +100,9 @@ def compute_distances(img1_path, img2_path):
     distancey = float(kp1[matches[0].queryIdx].pt[1] - kp2[matches[0].trainIdx].pt[1])
     distancex = float(kp1[matches[0].queryIdx].pt[0] - kp2[matches[0].trainIdx].pt[0])
 
+    kpf = (kp1[matches[0].queryIdx].pt[0],kp1[matches[0].queryIdx].pt[1])
+    kps = (kp2[matches[0].trainIdx].pt[0],kp2[matches[0].trainIdx].pt[1])
+
     # pt1_1 = np.array(kp1[matches[0].queryIdx].pt)
     # pt1_2 = np.array(kp1[matches[1].queryIdx].pt)
     # pt2_1 = np.array(kp2[matches[0].trainIdx].pt)
@@ -142,26 +112,40 @@ def compute_distances(img1_path, img2_path):
 
     angleList = []
 
-    for i in range(0,len(matches)-1):
-        ptx_1 = np.array(kp1[matches[i].queryIdx].pt)
-        ptx_2 = np.array(kp1[matches[i+1].queryIdx].pt)
-        pty_1 = np.array(kp2[matches[i].trainIdx].pt)
-        pty_2 = np.array(kp2[matches[i+1].trainIdx].pt)
-        v1 = ptx_1 - ptx_2
-        v2 = pty_1 - pty_2
-        cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-        angle = np.arccos(np.clip(cos_angle, -1, 1))
-        angle_degrees = np.degrees(angle)
-        angle_degrees_c = 180 - angle_degrees
+    for i in range(0, len(matches)-1):
+        for j in range(1, len(matches)):
+            if i == j:
+                continue
+            else:
+                ptx_1 = np.array(kp1[matches[i].queryIdx].pt)
+                ptx_2 = np.array(kp1[matches[i+1].queryIdx].pt)
+                pty_1 = np.array(kp2[matches[i].trainIdx].pt)
+                pty_2 = np.array(kp2[matches[i+1].trainIdx].pt)
+                v1 = ptx_1 - ptx_2
+                v2 = pty_1 - pty_2
+                cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+                angle = np.arccos(np.clip(cos_angle, -1, 1))
+                angle_degrees = np.degrees(angle)
+                angle_degrees_c = 180 - angle_degrees
 
-        # 计算叉积，确定旋转方向
-        cross_product = v1[0] * v2[1] - v1[1] * v2[0]
-        finalrotate = min(angle_degrees, angle_degrees_c)
-        if cross_product < 0:
-            finalrotate = -finalrotate
+                # 计算叉积，确定旋转方向
+                cross_product = v1[0] * v2[1] - v1[1] * v2[0]
+                finalrotate = min(angle_degrees, angle_degrees_c)
+                if cross_product < 0:
+                    finalrotate = -finalrotate
 
-        angleList.append(finalrotate)
+                angleList.append(finalrotate)
 
+    # 使用seaborn绘制分布图
+    sns.set(style="whitegrid")
+    sns.histplot(angleList, kde=True, color="blue")
+
+    # 设置标题和轴标签
+    plt.title("数据分布图")
+    plt.xlabel("数值")
+    plt.ylabel("频数")
+
+    plt.show()
     # filtered_angles,means = filter_angles(angleList)
     # print(filter_angles_Sort(angleList))
     # print(filtered_angles)
@@ -169,14 +153,13 @@ def compute_distances(img1_path, img2_path):
     # print(filter_angles_Sort(angleList)[0],"AAAAAA")
 
     # print(distancex,"看这个",kp1[matches[0].queryIdx].pt[0],kp2[matches[0].trainIdx].pt[0])
-    return distancex, distancey,filter_angles_Sort(angleList)[0]
+    return distancex, distancey, filter_angles_Sort(angleList), kpf, kps
 
 
 def stitch_images_with_shift(img1_path, img2_path, output_path):
 
 
     x_shift, y_shift = compute_distances(img2_path, img1_path)
-    print(x_shift, y_shift)
 
     x_shift = abs(int(x_shift))
     y_shift = abs(int(y_shift))
@@ -206,12 +189,11 @@ def stitch_images_with_shift_multi(images,output_path):
 
     shifts = []
     for i in range(0,len(images)-1):
-        x_shift, y_shift, angle = compute_distances(images[i], images[i+1])
+        x_shift, y_shift, angle, kpf, kps = compute_distances(images[i], images[i+1])
         x_shift = int(x_shift)
         y_shift = int(y_shift)
         shifts.append((x_shift, y_shift,angle))
 
-    print(shifts,"aaaaaaaaa")
 
     # Read the first image
     img1 = Image.open(images[0]).convert("RGBA")
@@ -222,13 +204,15 @@ def stitch_images_with_shift_multi(images,output_path):
     height = img1.height + sum([abs(shift[1]) for shift in shifts])
 
 
-    print(width,height)
-
     # Create a new image with the combined dimensions
     stitched_image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
 
     # Paste the first image onto the new image
     stitched_image.paste(img1, (0+sum([abs(shift[0]) for shift in shifts]), 0))
+
+    # fake angle
+    # angles = [0, -2, 2]
+    # itr_angles = [0,-2, 0]
 
     for i in range(1, len(images)):
         img_path = images[i]
@@ -241,21 +225,18 @@ def stitch_images_with_shift_multi(images,output_path):
         x_pos = sum([shift[0] for shift in shifts[:i]])+sum([abs(shift[0]) for shift in shifts])
         y_pos = sum([shift[1] for shift in shifts[:i]])
 
-        print(x_pos,y_pos)
-
-        img = rotate_rgba_image_fixed_center(img,int(sum([shift[2] for shift in shifts[:i]])))
-
-
-        print("转成功了2")
+        img, offset_x, offset_y = rotate_rgba_image_fixed_center(img, int(sum([shift[2] for shift in shifts[:i]])), int(shifts[i-1][2]), kps)
+        # img, offset_x, offset_y = rotate_rgba_image_fixed_center(img, itr_angles[i-1], angles[i-1], kps)
 
         # Paste the current image with the calculated shifts
         background = stitched_image
         foreground = img
-        foreground.alpha_composite(foreground, (x_pos, y_pos))
-        stitched_image.paste(img, (x_pos, y_pos))
+        background.alpha_composite(foreground, (x_pos + int(offset_x), y_pos + int(offset_y)))
+        # stitched_image.paste(img, (x_pos, y_pos))
 
     # Save the stitched image
-    foreground.save(output_path)
+    background.save(output_path)
+
 
 def rotate_rgba_image(img, rotation_angle):
     # 读取图像
@@ -273,30 +254,42 @@ def rotate_rgba_image(img, rotation_angle):
     abs_sin = abs(rotation_matrix[0, 1])
     new_width = int(h * abs_sin + w * abs_cos)
     new_height = int(h * abs_cos + w * abs_sin)
-# 更新旋转矩阵中心
+
+    # 偏移量
+    offset = new_width - w
+
+    # 更新旋转矩阵中心
     rotation_matrix[0, 2] += (new_width / 2) - center[0]
     rotation_matrix[1, 2] += (new_height / 2) - center[1]
 
-# 旋转图像
+    # 旋转图像
     rotated_img = cv2.warpAffine(img, rotation_matrix, (new_width, new_height), borderMode=cv2.BORDER_CONSTANT, borderValue=(0, 0, 0, 0))
 
-# 保存旋转后的图像
-    return rotated_img
+    # 保存旋转后的图像
+    return rotated_img, offset
 
 
-def rotate_rgba_image_fixed_center(img, rotation_angle):
+def rotate_rgba_image_fixed_center(img, rotation_angle, abs_angle, point):
     # 读取图像
     #src_img = Image.open(image_path).convert("RGBA")
 
     # 获取旋转矩阵
     (w, h) = img.size
-    center = (w // 2, h // 2)
+    center = [realw, realh]
 
     # 计算新的图像尺寸
     angle_rad = math.radians(rotation_angle)
     new_width = int(abs(h * math.sin(angle_rad)) + abs(w * math.cos(angle_rad)))
     new_height = int(abs(h * math.cos(angle_rad)) + abs(w * math.sin(angle_rad)))
 
+    abs_angle_radis = math.radians(abs_angle)
+    point_rotated_x = (point[0]-center[0]) * math.cos(abs_angle_radis) - (point[1] - center[1]) * math.sin(abs_angle_radis) + center[0]
+    point_rotated_y = (point[0]-center[0]) * math.sin(abs_angle_radis) + (point[1] - center[1]) * math.cos(abs_angle_radis) + center[1]
+
+    delta_x = point_rotated_x - point[0]
+    delta_y = point_rotated_y - point[1]
+
+    print("delta: ", delta_x, delta_y,abs_angle_radis,abs_angle)
     # 创建一个新的透明图像，尺寸为新的宽度和高度
     new_img = Image.new("RGBA", (new_width, new_height), (0, 0, 0, 0))
 
@@ -310,7 +303,7 @@ def rotate_rgba_image_fixed_center(img, rotation_angle):
     rotated_img = crop_transparent_area(rotated_img)
 
     # 保存旋转后的图像
-    return rotated_img
+    return rotated_img, delta_x, delta_y
 
 
 def crop_transparent_area(image):
@@ -336,6 +329,8 @@ img4path = './bmp/4.png'
 img5pathAngle = './transformedPic/113.jpg'
 img6pathAngle = './transformedPic/143.jpg'
 
+img = cv2.imread(img1path)
+realw, realh = img.shape[:2]
 
 if __name__ == '__main__':
     outputpath = './resaaa.png'
