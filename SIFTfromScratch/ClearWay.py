@@ -245,15 +245,17 @@ def stitch_images_with_shift_multi(images,output_path):
 
         img = rotate_rgba_image_fixed_center(img,int(sum([shift[2] for shift in shifts[:i]])))
 
-        img.save('./internal.png')
 
         print("转成功了2")
 
         # Paste the current image with the calculated shifts
+        background = stitched_image
+        foreground = img
+        foreground.alpha_composite(foreground, (x_pos, y_pos))
         stitched_image.paste(img, (x_pos, y_pos))
 
     # Save the stitched image
-    stitched_image.save(output_path)
+    foreground.save(output_path)
 
 def rotate_rgba_image(img, rotation_angle):
     # 读取图像
@@ -281,6 +283,7 @@ def rotate_rgba_image(img, rotation_angle):
 # 保存旋转后的图像
     return rotated_img
 
+
 def rotate_rgba_image_fixed_center(img, rotation_angle):
     # 读取图像
     #src_img = Image.open(image_path).convert("RGBA")
@@ -303,8 +306,28 @@ def rotate_rgba_image_fixed_center(img, rotation_angle):
     # 旋转图像
     rotated_img = new_img.rotate(-rotation_angle, resample=Image.BICUBIC, expand=True)
 
+    # 去除边缘
+    rotated_img = crop_transparent_area(rotated_img)
+
     # 保存旋转后的图像
     return rotated_img
+
+
+def crop_transparent_area(image):
+
+    # 获取图像的alpha通道
+    alpha_channel = image.getchannel('A')
+
+    # 计算边界框
+    bbox = alpha_channel.getbbox()
+
+    # 如果边界框存在，对图像进行裁剪
+    if bbox:
+        cropped_image = image.crop(bbox)
+        return cropped_image
+    else:
+        print("The image is completely transparent.")
+
 
 img1path = './bmp/1.png'
 img2path = './bmp/2.png'
