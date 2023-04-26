@@ -1,4 +1,5 @@
 import math
+import time
 from collections import Counter
 import cv2
 import matplotlib.pyplot as plt
@@ -15,8 +16,91 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 
-from SIFTfromScratch.stitchMulti import rotateimg
+jaccard_result_list = []
+sorensen_dice_result_liat = []
+hash_result_list = []
 
+def jaccard_similarity(set_a, set_b):
+    intersection = set_a.intersection(set_b)
+    union = set_a.union(set_b)
+    return len(intersection) / len(union)
+
+def sorensen_dice_similarity(set_a, set_b):
+    intersection = set_a.intersection(set_b)
+    return 2 * len(intersection) / (len(set_a) + len(set_b))
+
+def hash_similarity(str_a, str_b):
+    return sum(1 for a, b in zip(str_a, str_b) if a == b) / len(str_a)
+
+
+def calculate_similarity(seq_a, seq_b, method="jaccard"):
+    set_a, set_b = set(seq_a), set(seq_b)
+    if method == "jaccard":
+        return jaccard_similarity(set_a, set_b)
+    elif method == "sorensen_dice":
+        return sorensen_dice_similarity(set_a, set_b)
+    elif method == "hash":
+        return hash_similarity(seq_a, seq_b)
+    else:
+        raise ValueError(f"Unknown similarity method: {method}")
+
+
+def remove_nan_from_list(input_list):
+    # 使用列表推导式删除NaN值
+    cleaned_list = [x for x in input_list if not np.isnan(x)]
+    return cleaned_list
+
+from SIFTfromScratch.stitchMulti import rotateimg
+def cluster_angles(angle_list, num_clusters=2):
+    # 将角度列表转换为二维数组，以适应KMeans函数
+    angle_array = np.array(angle_list).reshape(-1, 1)
+
+    # 创建KMeans模型，并使用角度数组进行拟合
+    kmeans = KMeans(n_clusters=num_clusters, random_state=0).fit(angle_array)
+
+    # 计算各个簇的大小并找到最大簇的索引
+    cluster_sizes = [np.sum(kmeans.labels_ == i) for i in range(num_clusters)]
+    largest_cluster_index = np.argmax(cluster_sizes)
+
+    # 获取最大簇的聚类中心
+    largest_cluster_center = kmeans.cluster_centers_[largest_cluster_index]
+
+    return largest_cluster_center[0]
+
+def cluster_angles_dbscan(angle_list, eps=15, min_samples=2):
+    # 将角度列表转换为二维数组，以适应DBSCAN函数
+    angle_array = np.array(angle_list).reshape(-1, 1)
+
+    # 创建DBSCAN模型，并使用角度数组进行拟合
+    dbscan = DBSCAN(eps=eps, min_samples=min_samples).fit(angle_array)
+
+    # 计算各个簇的大小并找到最大簇的索引
+    unique_labels, counts = np.unique(dbscan.labels_, return_counts=True)
+    largest_cluster_index = np.argmax(counts[unique_labels != -1])
+
+    # 获取最大簇的聚类中心
+    largest_cluster_center = np.mean(angle_array[dbscan.labels_ == largest_cluster_index])
+
+    return largest_cluster_center
+
+def cluster_angles_mean_shift(angle_list, quantile=0.3, n_samples=None):
+    # 将角度列表转换为二维数组，以适应MeanShift函数
+    angle_array = np.array(angle_list).reshape(-1, 1)
+
+    # 估计带宽参数
+    bandwidth = estimate_bandwidth(angle_array, quantile=quantile, n_samples=n_samples)
+
+    # 创建MeanShift模型，并使用角度数组进行拟合
+    mean_shift = MeanShift(bandwidth=bandwidth).fit(angle_array)
+
+    # 计算各个簇的大小并找到最大簇的索引
+    unique_labels, counts = np.unique(mean_shift.labels_, return_counts=True)
+    largest_cluster_index = np.argmax(counts)
+
+    # 获取最大簇的聚类中心
+    largest_cluster_center = mean_shift.cluster_centers_[largest_cluster_index]
+
+    return largest_cluster_center[0]
 
 def filter_angles_Sort(angles, bandwidth=None, bin_seeding=True):
     # 将 angles 转换为列向量
@@ -83,6 +167,7 @@ def filter_angles(angles, n_clusters=4):
 
 
 def compute_distances(img1_path, img2_path):
+
     img1 = cv2.imread(img1_path,cv2.IMREAD_UNCHANGED)
     img2 = cv2.imread(img2_path,cv2.IMREAD_UNCHANGED)
 
@@ -111,39 +196,67 @@ def compute_distances(img1_path, img2_path):
     # print(pt1_1,pt1_2,pt2_1,pt2_2)
 
     angleList = []
+    start_time = time.time()
+    # for i in range(0, len(matches)-1):
+    #     for j in range(1, len(matches)):
+    #         if i == j:
+    #             continue
+    #         else:
+    #             ptx_1 = np.array(kp1[matches[i].queryIdx].pt)
+    #             ptx_2 = np.array(kp1[matches[i+1].queryIdx].pt)
+    #             pty_1 = np.array(kp2[matches[i].trainIdx].pt)
+    #             pty_2 = np.array(kp2[matches[i+1].trainIdx].pt)
+    #             v1 = ptx_1 - ptx_2
+    #             v2 = pty_1 - pty_2
+    #             cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+    #             angle = np.arccos(np.clip(cos_angle, -1, 1))
+    #             angle_degrees = np.degrees(angle)
+    #             angle_degrees_c = 180 - angle_degrees
+    #
+    #             # 计算叉积，确定旋转方向
+    #             cross_product = v1[0] * v2[1] - v1[1] * v2[0]
+    #             finalrotate = min(angle_degrees, angle_degrees_c)
+    #             if cross_product < 0:
+    #                 finalrotate = -finalrotate
+    #
+    #             angleList.append(finalrotate)
 
-    for i in range(0, len(matches)-1):
-        for j in range(1, len(matches)):
-            if i == j:
-                continue
-            else:
-                ptx_1 = np.array(kp1[matches[i].queryIdx].pt)
-                ptx_2 = np.array(kp1[matches[i+1].queryIdx].pt)
-                pty_1 = np.array(kp2[matches[i].trainIdx].pt)
-                pty_2 = np.array(kp2[matches[i+1].trainIdx].pt)
-                v1 = ptx_1 - ptx_2
-                v2 = pty_1 - pty_2
-                cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-                angle = np.arccos(np.clip(cos_angle, -1, 1))
-                angle_degrees = np.degrees(angle)
-                angle_degrees_c = 180 - angle_degrees
+
+    for i in range(0, int(math.ceil((len(matches)-1))*3/4)):
+
+
+        ptx_1 = np.array(kp1[matches[i].queryIdx].pt)
+        ptx_2 = np.array(kp1[matches[i+1].queryIdx].pt)
+        pty_1 = np.array(kp2[matches[i].trainIdx].pt)
+        pty_2 = np.array(kp2[matches[i+1].trainIdx].pt)
+        v1 = ptx_1 - ptx_2
+        v2 = pty_1 - pty_2
+        cos_angle = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+        angle = np.arccos(np.clip(cos_angle, -1, 1))
+        angle_degrees = np.degrees(angle)
+        angle_degrees_c = 180 - angle_degrees
 
                 # 计算叉积，确定旋转方向
-                cross_product = v1[0] * v2[1] - v1[1] * v2[0]
-                finalrotate = min(angle_degrees, angle_degrees_c)
-                if cross_product < 0:
-                    finalrotate = -finalrotate
+        cross_product = v1[0] * v2[1] - v1[1] * v2[0]
+        finalrotate = min(angle_degrees, angle_degrees_c)
+        if cross_product < 0:
+            finalrotate = -finalrotate
 
-                angleList.append(finalrotate)
+        angleList.append(finalrotate)
+    a = cluster_angles_dbscan(remove_nan_from_list(angleList))
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print("Center",a)
+    print("Execution time:", execution_time, "seconds")
 
     # 使用seaborn绘制分布图
     sns.set(style="whitegrid")
     sns.histplot(angleList, kde=True, color="blue")
 
     # 设置标题和轴标签
-    plt.title("数据分布图")
-    plt.xlabel("数值")
-    plt.ylabel("频数")
+    plt.title("dis")
+    plt.xlabel("v")
+    plt.ylabel("n")
 
     plt.show()
     # filtered_angles,means = filter_angles(angleList)
@@ -153,7 +266,7 @@ def compute_distances(img1_path, img2_path):
     # print(filter_angles_Sort(angleList)[0],"AAAAAA")
 
     # print(distancex,"看这个",kp1[matches[0].queryIdx].pt[0],kp2[matches[0].trainIdx].pt[0])
-    return distancex, distancey, filter_angles_Sort(angleList), kpf, kps
+    return distancex, distancey, cluster_angles(angleList), kpf, kps
 
 
 def stitch_images_with_shift(img1_path, img2_path, output_path):
@@ -329,6 +442,9 @@ img4path = './bmp/4.png'
 img5pathAngle = './transformedPic/113.jpg'
 img6pathAngle = './transformedPic/143.jpg'
 
+img10path = './transformedPic/10.png'
+img12path = './transformedPic/12.png'
+
 img = cv2.imread(img1path)
 realw, realh = img.shape[:2]
 
@@ -338,6 +454,7 @@ if __name__ == '__main__':
 
     imgpath = []
     imgpath2 = []
+    imgpath3 = []
 
     imgpath.append(img4path)
     imgpath.append(img3path)
@@ -347,6 +464,8 @@ if __name__ == '__main__':
     imgpath2.append(img5pathAngle)
     imgpath2.append(img6pathAngle)
 
+    imgpath3.append(img10path)
+    imgpath3.append(img12path)
 
     #compute_distances(img2path,img1path)
     #compute_distances_withSIFT(img5pathAngle,img6pathAngle)

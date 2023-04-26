@@ -40,7 +40,7 @@ camera_with = camera_angle*1.79  #相机内视场横向角度
 tiangle = (180-camera_with)/2   #上横向视场与地面夹角
 
 def getPercent():
-    src = cv2.imread("./imgs/buda_4.png")
+    src = cv2.imread("./imgs/12.jpg")
 
     h,w,ch = np.shape(src)
     gray = cv2.cvtColor(src,cv2.COLOR_BGR2GRAY)
@@ -80,12 +80,10 @@ x2 = ((head-bottom)/2+bottom)*pixavg
 
 Space=((head+bottom)*origin_length)/2
 
-img = cv2.imread('./imgs/buda_4.png')
+img = cv2.imread('./imgs/12.jpg')
 rows, cols, ch = img.shape
 pts1 = np.float32([[0, 0],[originW,0],[originW,originH],[0,originH] ])
 pts2 = np.float32([[0, 0],[originW, 0],[x2, result_pic_reso],[x1, result_pic_reso]])
-
-
 
 M = cv2.getPerspectiveTransform(pts1, pts2)
 dst = cv2.warpPerspective(img, M, (originW, result_pic_reso))
@@ -96,7 +94,7 @@ print("Space=",Space)
 percent = getPercent()
 
 print("Cany=",Space*percent)
-cv2.imwrite("./transformedPic/4.png",dst)
+cv2.imwrite("./transformedPic/12.png",dst)
 plt.subplot(121), plt.imshow(img), plt.title('Input')
 plt.subplot(122), plt.imshow(dst), plt.title('output')
 plt.show()
